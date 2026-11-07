@@ -69,6 +69,15 @@ extension LmuxController {
         view.window?.makeFirstResponder(view)
     }
 
+    /// Rows came in while the list is open (its height follows the count): resize the popover (headless, its
+    /// holder) to the content. Left to the hosting view, it grows from its bottom edge and drifts off the bell.
+    func notificationsCountChanged() {
+        guard notificationsPanel.isOpen, let view = notificationsView else { return }
+        notificationsResizes += 1
+        view.layoutSubtreeIfNeeded()
+        if headless { view.window?.setContentSize(view.fittingSize) } else { notificationsPopover?.contentSize = view.fittingSize }
+    }
+
     public func closeNotifications() {
         notificationsPanel.isOpen = false
         notificationsPopover?.performClose(nil)
@@ -183,6 +192,7 @@ public struct NotificationsView: View {
             }
         }
         .frame(width: Self.width)
+        .onChange(of: model.notifications.count) { DispatchQueue.main.async { controller?.notificationsCountChanged() } }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Notifications")
     }

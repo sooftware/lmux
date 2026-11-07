@@ -148,6 +148,9 @@ public final class LmuxController: NSObject, NSWindowDelegate {
     var tabDropPreview: TabDropPreview?
     /// The window was closed in full screen: it hides once full screen has ended (`windowShouldClose`).
     var hideAfterFullScreen = false
+    /// Times the open notification list was resized to new rows (tests: headless, the hosting view
+    /// resizes its holder window by itself, so the size alone doesn't show the popover follows).
+    public internal(set) var notificationsResizes = 0
     /// The bell's popover (built on first open; never shown headless, see `Notifications.swift`).
     var notificationsPopover: NSPopover?
     var notificationsView: NotificationsHostingView?
