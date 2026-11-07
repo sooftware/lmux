@@ -327,10 +327,23 @@ public final class LmuxController: NSObject, NSWindowDelegate {
         refreshPaneChrome()
     }
     public func windowDidResignKey(_ notification: Notification) { syncSurfaceFocus() }
-    /// Full screen moves the titlebar buttons to the left edge (no traffic lights there), and back.
+    /// Full screen moves the titlebar buttons to the left edge while the traffic lights are hidden, and back.
     public func windowWillEnterFullScreen(_ notification: Notification) { root.needsLayout = true }
-    public func windowDidEnterFullScreen(_ notification: Notification) { root.needsLayout = true }
-    public func windowDidExitFullScreen(_ notification: Notification) { root.needsLayout = true }
+    public func windowDidEnterFullScreen(_ notification: Notification) {
+        root.trackTrafficLights(true)
+        root.needsLayout = true
+    }
+    public func windowWillExitFullScreen(_ notification: Notification) {
+        root.trackTrafficLights(false)
+        root.exitingFullScreen = true
+    }
+    public func windowDidExitFullScreen(_ notification: Notification) {
+        root.exitingFullScreen = false
+    }
+    public func windowDidFailToExitFullScreen(_ window: NSWindow) {
+        root.exitingFullScreen = false
+        root.trackTrafficLights(true)
+    }
 
     /// The first responder surface has focus only while the window is key (see
     /// `SurfaceView.windowIsKey`).
