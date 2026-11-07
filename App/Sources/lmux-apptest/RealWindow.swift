@@ -336,6 +336,21 @@ func runRealWindow() async -> Int32 {
         r.check("full screen exits", await rw.waitUntil(4) { !w.styleMask.contains(.fullScreen) })
         await sleepMs(800)
         await rw.clickAndType(p1, "after full screen")
+        rw.steps.append("close in full screen")
+        w.toggleFullScreen(nil)
+        if await rw.waitUntil(4, { w.styleMask.contains(.fullScreen) }) {
+            await sleepMs(800)
+            w.performClose(nil)
+            r.check("closing in full screen leaves full screen, then hides the window (no empty black Space)",
+                    await rw.waitUntil(6) { !w.styleMask.contains(.fullScreen) && !w.isVisible },
+                    "fullScreen=\(w.styleMask.contains(.fullScreen)) visible=\(w.isVisible)")
+            c.reopenWindow()
+            r.check("…reopen brings it back, windowed", await rw.waitUntil(3) { w.isVisible && !w.styleMask.contains(.fullScreen) })
+            await sleepMs(500)
+            await rw.clickAndType(p1, "after close in full screen")
+        } else {
+            r.check("full screen re-enters (for close in full screen)", false)
+        }
     }
     if let x = trafficLight(rw, .closeButton) {
         let ids = c.model.workspaces.flatMap(\.panes).map(\.id)
