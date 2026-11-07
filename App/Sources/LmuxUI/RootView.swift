@@ -7,7 +7,8 @@ private typealias T = LmuxTokens
 /// Window content: sidebar column (titlebar strip + SwiftUI list), titlebar
 /// buttons, content header and the workspace's split tree.
 ///
-/// Nothing is placed left of `trafficLightsInset` in the titlebar strip.
+/// Nothing is placed left of `trafficLightsInset` in the titlebar strip (outside full screen,
+/// which hides the traffic lights).
 final class RootView: FlippedView {
     let model: AppModel
     weak var controller: LmuxController?
@@ -116,7 +117,10 @@ final class RootView: FlippedView {
 
         let cw = TitlebarCluster.width, bs = T.Layout.titlebarButtonSize
         let lights = trafficLightsFrame
-        let inset = lights.map { max(T.Layout.trafficLightsInset, $0.maxX + 12) } ?? T.Layout.trafficLightsInset
+        // Full screen hides the traffic lights: the buttons go to the left edge (like Finder, Xcode).
+        let fullScreen = window?.styleMask.contains(.fullScreen) ?? false
+        let inset = fullScreen ? T.Layout.rowInsetX
+            : lights.map { max(T.Layout.trafficLightsInset, $0.maxX + 12) } ?? T.Layout.trafficLightsInset
         // Fixed right after the traffic lights whether the sidebar is shown or not (like Finder,
         // Notes, Xcode): the toggle never moves under the pointer, so a second click toggles back.
         let clusterX = inset
