@@ -254,21 +254,25 @@ func waitFor(_ timeout: Double = 3, _ cond: () -> Bool) async -> Bool {
 /// Run a helper process off the main thread (the app answers its socket on main).
 func runProcess(_ path: String, _ args: [String], env: [String: String] = [:], stdin: Data? = nil)
     async -> (status: Int32, out: String, err: String) {
-    await Task.detached {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: path)
-        p.arguments = args
-        p.environment = ProcessInfo.processInfo.environment.merging(env) { $1 }
-        let out = Pipe(), err = Pipe(), inp = Pipe()
-        p.standardOutput = out
-        p.standardError = err
-        p.standardInput = inp
-        do { try p.run() } catch { return (-1, "", "\(error)") }
-        if let stdin { inp.fileHandleForWriting.write(stdin) }
-        try? inp.fileHandleForWriting.close()
-        let o = out.fileHandleForReading.readDataToEndOfFile()
-        let e = err.fileHandleForReading.readDataToEndOfFile()
-        p.waitUntilExit()
-        return (p.terminationStatus, String(decoding: o, as: UTF8.self), String(decoding: e, as: UTF8.self))
-    }.value
+    // On a GCD thread, not the concurrency pool: its blocking reads would hold one of only as many
+    // threads as there are cores (3 on a CI runner), and further processes wouldn't start until one ended.
+    await withCheckedContinuation { done in
+        DispatchQueue.global().async {
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: path)
+            p.arguments = args
+            p.environment = ProcessInfo.processInfo.environment.merging(env) { $1 }
+            let out = Pipe(), err = Pipe(), inp = Pipe()
+            p.standardOutput = out
+            p.standardError = err
+            p.standardInput = inp
+            do { try p.run() } catch { done.resume(returning: (-1, "", "\(error)")); return }
+            if let stdin { inp.fileHandleForWriting.write(stdin) }
+            try? inp.fileHandleForWriting.close()
+            let o = out.fileHandleForReading.readDataToEndOfFile()
+            let e = err.fileHandleForReading.readDataToEndOfFile()
+            p.waitUntilExit()
+            done.resume(returning: (p.terminationStatus, String(decoding: o, as: UTF8.self), String(decoding: e, as: UTF8.self)))
+        }
+    }
 }

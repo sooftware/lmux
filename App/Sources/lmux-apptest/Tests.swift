@@ -592,7 +592,7 @@ func runMain() async -> Int32 {
         let elapsed = Date().timeIntervalSince(start)
         r.check("a client that connects, sends a request and never reads doesn't block the main "
                 + "thread: a concurrent `lmux list` still completes promptly",
-                concurrent.status == 0 && elapsed < 0.3, "elapsed=\(Int(elapsed * 1000))ms " + concurrent.err)
+                concurrent.status == 0 && elapsed < 0.3 * ciSlow, "elapsed=\(Int(elapsed * 1000))ms " + concurrent.err)
         Darwin.close(stuckFD)
     } else {
         r.check("could open a raw client connection to the control socket", false)
