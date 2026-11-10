@@ -30,6 +30,12 @@ enum KC {
 @MainActor
 func sleepMs(_ ms: Int) async { try? await Task.sleep(for: .milliseconds(ms)) }
 
+/// Allowance for wall-clock and CPU-share budgets on a slow shared machine: `LMUX_CI_SLOW=<factor>`,
+/// set only by .github/workflows/ci.yml (GitHub's macOS runners are 3-vCPU VMs shared with other
+/// jobs: the same work takes ~1.5-3x the time and CPU share of an M-series laptop, and the main thread
+/// can be preempted for a frame or two). Unset (every local run) it is 1: the strict budget.
+let ciSlow: Double = max(1, Double(ProcessInfo.processInfo.environment["LMUX_CI_SLOW"] ?? "") ?? 1)
+
 /// Synthesized events go through the app's event queue (so NSApp.currentEvent and local monitors
 /// behave as in real dispatch) and are delivered exactly once.
 ///

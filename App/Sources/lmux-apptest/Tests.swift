@@ -20,6 +20,10 @@ func makeController() -> LmuxController {
     // History indexes through the helper process, as the app does.
     c.history.helper = Bundle.main.executableURL
     c.start(windowFrame: NSRect(x: 0, y: 0, width: 1280, height: 800))
+    // Hermetic: the machine's Reduce Motion (on in GitHub's macOS runner image) doesn't decide whether
+    // rows breathe and spinners turn; the checks of Reduce Motion turn it on themselves.
+    c.reduceMotionOverride = false
+    c.updatePulseMotion()
     liveController = c
     return c
 }
@@ -1024,10 +1028,11 @@ func runMain() async -> Int32 {
                 && sparseFile?.workspaces.first?.root.pane.map { $0.doneAt == nil && $0.attentionSince == nil } == true)
     // An 8-day-old backup of the old forget: the next launch (--restore) must prune it.
     let stale = c.forgottenDirectory.appendingPathComponent("stale-backup.jsonl")
-    try? FileManager.default.createDirectory(at: c.forgottenDirectory, withIntermediateDirectories: true)
+    try? FileManager.default.createDirectory(at: c.forgottenDirectory, withIntermediateDirectories: true,
+                                             attributes: [.posixPermissions: 0o700])
     try? Data("forgotten text".utf8).write(to: stale)
-    // 0600 like the backups lmux writes itself, so the restore run's permission scan doesn't depend on
-    // whether the prune already ran.
+    // 0700 / 0600 like the backups lmux wrote itself (not the umask's 755 / 644), so the restore run's
+    // permission scan doesn't depend on whether the prune already ran (it hasn't, on a slow machine).
     try? FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(-8 * 86400), .posixPermissions: 0o600],
                                            ofItemAtPath: stale.path)
     // Rewrite exactly what --restore will check.

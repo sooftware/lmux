@@ -571,8 +571,11 @@ func runRealWindow() async -> Int32 {
     r.check("clicking its newest row jumps to that workspace and closes it", c.model.selected === target
             && c.notificationsPopover?.isShown != true && target.panes[0].unread == 0)
     await rw.click(buttonPoint(1), settle: 600)
+    let beforeEsc = "open=\(c.notificationsPanel.isOpen) shown=\(c.notificationsPopover?.isShown == true) "
+        + "key=\(NSApp.keyWindow.map { String(describing: type(of: $0)) } ?? "nil") fr=\(NSApp.keyWindow?.firstResponder.map { String(describing: type(of: $0)) } ?? "nil") "
+        + "reduceMotion=\(NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)"
     await rw.key(53, settle: 500)
-    r.check("Esc closes it", c.notificationsPopover?.isShown != true && !c.notificationsPanel.isOpen)
+    r.check("Esc closes it", c.notificationsPopover?.isShown != true && !c.notificationsPanel.isOpen, beforeEsc)
     await rw.clickAndType(c.model.selected!.focusedPane!, "after the bell")
     c.closeWorkspace(target)
 
@@ -588,7 +591,12 @@ func runRealWindow() async -> Int32 {
                 "cluster \(cl.midY) lights \(lights.midY)")
     }
     r.check("polish: sidebar is the translucent material (Reduce Transparency off)",
-            !root.sidebarBackdrop.material.isHidden && root.sidebarBackdrop.material.blendingMode == .behindWindow)
+            !root.sidebarBackdrop.material.isHidden && root.sidebarBackdrop.material.blendingMode == .behindWindow,
+            "reduceTransparency=\(NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency)")
+    // Claude finished the left pane's turn: the turn Claude is still writing gets no ✎ × (updateHover),
+    // and the fixture's earlier turn makes this one removable (the conversation's first has no ×).
+    hookEvent(c, scene.left, "Stop", session: "polish-1", ["last_assistant_message": "Found it."])
+    _ = await rw.waitUntil(3) { scene.left.agent.state != .running }
     for (dark, name) in [(false, "light"), (true, "dark")] {
         NSApp.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
         await sleepMs(1200)
@@ -606,7 +614,9 @@ func runRealWindow() async -> Int32 {
             }
         }
         r.check("polish \(name): hovering the prompt shows ✎ × and, on ×, its explanation",
-                scene.left.view.overlay.turnBar?.shown == true && !scene.left.view.overlay.tip.isHidden)
+                scene.left.view.overlay.turnBar?.shown == true && !scene.left.view.overlay.tip.isHidden,
+                "head=\(m.map?.promptHeads().first.map { "\($0.row)" } ?? "nil") bar=\(scene.left.view.overlay.turnBar.map { "\($0.shown)" } ?? "nil") "
+                + "tip hidden=\(scene.left.view.overlay.tip.isHidden) turns=\(scene.left.hover.turns.count)")
         await rw.shot("polish-\(name)-hover")
         // ⇧⌘H, type, the panel; Esc Esc hands the keyboard back.
         await rw.move(rw.cg(scene.right.surface, NSPoint(x: 300, y: 200)))
@@ -632,9 +642,14 @@ func runRealWindow() async -> Int32 {
         c.presentHooksSheet(install: true, firstRun: true)
         _ = await rw.waitUntil(3) { w.attachedSheet != nil }
         await sleepMs(800)
-        r.check("polish \(name): the hooks sheet is the custom sheet (no NSAlert), diff collapsed, fits in 400pt",
-                w.attachedSheet.map { !($0 is NSPanel) && $0.frame.height <= 400 } ?? false,
-                "\(w.attachedSheet.map { "\($0.frame)" } ?? "no sheet")")
+        // Collapsed: exactly the height of the sheet's content with the diff hidden (shown, it adds up to 200pt).
+        // (It used to say "fits in 400pt"; the copy and preview card make it 427-445pt on every Mac, 2x or 1x.)
+        let collapsed = HooksSheet.window(install: true, diff: "", settingsPath: HooksSetup.settingsPath(), cancelTitle: "Not Now") { _ in }
+        let collapsedHeight = collapsed.contentViewController?.view.fittingSize.height ?? 0
+        let screenHeight = w.screen?.visibleFrame.height ?? 0
+        r.check("polish \(name): the hooks sheet is the custom sheet (no NSAlert), diff collapsed, fits on the screen",
+                w.attachedSheet.map { !($0 is NSPanel) && abs($0.frame.height - collapsedHeight) <= 1 && $0.frame.height <= screenHeight } ?? false,
+                "\(w.attachedSheet.map { "\($0.frame)" } ?? "no sheet") collapsed \(collapsedHeight) screen \(screenHeight)")
         await rw.shot("polish-\(name)-onboarding")
         await rw.key(53, settle: 600)
         r.check("polish \(name): Esc is Not Now (sheet gone, keyboard on the pane)",
