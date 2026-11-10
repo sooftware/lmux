@@ -51,7 +51,7 @@ CI_SLOW = max(1.0, float(os.environ.get("LMUX_CI_SLOW") or 1))
 CI_ALLOWANCE = {
     "event_cpu_ms": CI_SLOW,                # the same work on a slower CPU: 1.4-2.4ms vs ~0.5ms
     "restore120_ready_s": 2 * CI_SLOW,      # 120 shells forked at launch: 7.4s vs 1.0s (process spawn in the VM)
-X
+    "tab_bar_40_mb": CI_SLOW,               # on minus off: 15MB there vs ~0 here (the VM's footprint of 40 strips)
 }
 
 libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)

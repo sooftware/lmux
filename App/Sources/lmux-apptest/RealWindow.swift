@@ -346,7 +346,10 @@ func runRealWindow() async -> Int32 {
                     "fullScreen=\(w.styleMask.contains(.fullScreen)) visible=\(w.isVisible)")
             c.reopenWindow()
             r.check("…reopen brings it back, windowed", await rw.waitUntil(3) { w.isVisible && !w.styleMask.contains(.fullScreen) })
-            await sleepMs(500)
+            // Back from the full-screen Space: keys typed while the Space switch still runs are lost
+            // (seen on a runner, where it takes longer): on the active Space, then the settle time.
+            _ = await rw.waitUntil(5) { w.isOnActiveSpace }
+            await sleepMs(Int(500 * ciSlow))
             await rw.clickAndType(p1, "after close in full screen")
         } else {
             r.check("full screen re-enters (for close in full screen)", false)
