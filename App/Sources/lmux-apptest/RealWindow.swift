@@ -573,7 +573,8 @@ func runRealWindow() async -> Int32 {
     await rw.click(buttonPoint(1), settle: 600)
     let beforeEsc = "open=\(c.notificationsPanel.isOpen) shown=\(c.notificationsPopover?.isShown == true) "
         + "key=\(NSApp.keyWindow.map { String(describing: type(of: $0)) } ?? "nil") fr=\(NSApp.keyWindow?.firstResponder.map { String(describing: type(of: $0)) } ?? "nil") "
-        + "reduceMotion=\(NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)"
+        + "reduceMotion=\(NSWorkspace.shared.accessibilityDisplayShouldReduceMotion) "
+        + "popoverWindow=\(c.notificationsView?.window.map { "\(type(of: $0)) canKey=\($0.canBecomeKey) key=\($0.isKeyWindow)" } ?? "nil")"
     await rw.key(53, settle: 500)
     r.check("Esc closes it", c.notificationsPopover?.isShown != true && !c.notificationsPanel.isOpen, beforeEsc)
     await rw.clickAndType(c.model.selected!.focusedPane!, "after the bell")
