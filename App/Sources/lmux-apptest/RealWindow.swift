@@ -607,7 +607,13 @@ func runRealWindow() async -> Int32 {
         if let h = m.map?.promptHeads().first {
             let y = m.rows[h.row].top + m.rowHeight / 2
             await rw.move(rw.cg(scene.left.view.overlay, NSPoint(x: 120, y: y)))
-            await sleepMs(500)
+            // The pill comes after the turns are (re)read off the main thread: waited for, not 500ms.
+            if !(await rw.waitUntil(2) { scene.left.view.overlay.turnBar?.shown == true }) {
+                // (One more move, as a hand would: a move that landed while the History field still had
+                // the keyboard can come before the pane's tracking area is live again.)
+                await rw.move(rw.cg(scene.left.view.overlay, NSPoint(x: 124, y: y)))
+                _ = await rw.waitUntil(2) { scene.left.view.overlay.turnBar?.shown == true }
+            }
             if let bar = scene.left.view.overlay.turnBar, bar.shown {
                 await rw.move(rw.center(bar.remove))
                 await sleepMs(900)

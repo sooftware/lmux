@@ -268,8 +268,11 @@ def s_titles():
                               " sys.stdout.write('\\x1b]2;%s Fixing the refund validation\\x07'%g[i%10]);sys.stdout.flush();time.sleep(0.1)\n")
         for ws in L.panes[1:]:
             L.ctl({"cmd": "send", "pane": ws[0], "token": L.token(ws[0]), "text": f"/usr/bin/python3 {spin}\n"})
-        time.sleep(4)
-        if not all("Fixing the refund validation" in L.states()[ws[0]]["title"] for ws in L.panes[1:]):
+        # Waited for, not a fixed 4s: the first /usr/bin/python3 on a fresh CI runner takes seconds to start.
+        end = time.time() + 30
+        while not (ok := all("Fixing the refund validation" in L.states()[ws[0]]["title"] for ws in L.panes[1:])) and time.time() < end:
+            time.sleep(0.5)
+        if not ok:
             raise RuntimeError("the spinner never ran: its panes' titles did not change")
         cpu, _ = cpu_pct(L.pid, 15)
         check("9 hidden panes repainting a spinner title 10x/s: CPU", cpu, BUDGET["titles_cpu_pct"], "%")

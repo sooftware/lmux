@@ -66,6 +66,9 @@ extension LmuxController {
         let bs = T.Layout.titlebarButtonSize
         let bell = NSRect(x: bs + 2, y: 0, width: bs, height: root.cluster.bounds.height)
         pop.show(relativeTo: bell, of: root.cluster, preferredEdge: root.cluster.isFlipped ? .maxY : .minY)
+        // The list takes the keyboard (↑↓, Enter, Esc): its window has to be key, which show() doesn't
+        // always make it (seen with Reduce Motion on, no animation: Esc went to the pane under it).
+        view.window?.makeKey()
         view.window?.makeFirstResponder(view)
     }
 
