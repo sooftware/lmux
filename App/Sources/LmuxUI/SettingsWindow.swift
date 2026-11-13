@@ -59,6 +59,13 @@ public final class SettingsModel {
     @ObservationIgnored weak var controller: LmuxController?
     public var appearance: LmuxSettings.Appearance = .system
     public var lightTheme = "Nord Light"
+
+    /// A theme can be a file path (`theme = /Users/me/.config/ghostty/themes/X`, common after a cmux import).
+    /// Show only the file name, capped, so a long path can't push the Settings window wider (#7).
+    public static func themeLabel(_ theme: String) -> String {
+        let name = theme.contains("/") ? (theme as NSString).lastPathComponent : theme
+        return name.count > 24 ? String(name.prefix(23)) + "…" : name
+    }
     public var darkTheme = "Nord"
     /// The gallery shows the light or the dark themes.
     public var galleryDark = true
@@ -318,8 +325,8 @@ struct AppearanceTab: View {
             }
             Section {
                 Picker("Theme for", selection: $model.galleryDark) {
-                    Text("Light mode · \(model.lightTheme)").tag(false)
-                    Text("Dark mode · \(model.darkTheme)").tag(true)
+                    Text("Light mode · \(SettingsModel.themeLabel(model.lightTheme))").tag(false)
+                    Text("Dark mode · \(SettingsModel.themeLabel(model.darkTheme))").tag(true)
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
@@ -336,7 +343,7 @@ struct AppearanceTab: View {
             } header: {
                 Text("Theme")
             } footer: {
-                Text("lmux follows the appearance: light mode uses \(model.lightTheme), dark mode uses \(model.darkTheme).")
+                Text("lmux follows the appearance: light mode uses \(SettingsModel.themeLabel(model.lightTheme)), dark mode uses \(SettingsModel.themeLabel(model.darkTheme)).")
                     .font(.system(size: 11)).foregroundStyle(.secondary)
             }
         }
