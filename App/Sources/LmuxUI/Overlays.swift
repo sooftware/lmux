@@ -177,7 +177,7 @@ final class TurnActionBar: FlippedView {
         copy = OverlayButton(symbol: "doc.on.doc", style: .icon, help: "Copy original: Claude’s reply as markdown (⌥⌘C)", action: onCopy)
         edit = OverlayButton(symbol: "pencil", style: .icon, help: "Edit & resend: rewind to this message and put it back in the input",
                              action: onEdit)
-        remove = OverlayButton(symbol: "xmark", style: .icon, help: "Remove: rewind Claude to before this message",
+        remove = OverlayButton(symbol: "xmark", style: .icon, help: "Remove: rewind Claude to before this message (⌥-click: also restore the files Claude edited)",
                                action: onRemove)
         remove.prominent = true
         super.init(frame: .zero)

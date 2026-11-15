@@ -69,6 +69,7 @@ Hover any turn of a Claude session:
 - `⧉` copies the original markdown, not terminal soup. `⌥⌘C` does the same for the last reply.
 - `×` rewinds to just before that prompt: that turn and everything after it are gone from the conversation. The session keeps running; lmux drives Claude Code's own rewind (Esc Esc), so background shells and MCP servers aren't touched. Files changed in those turns stay as they are.
 - `✎` does the same rewind and puts the prompt back in the input to edit.
+- `⌥`-click `×` to also put back the files Claude edited with its own tools (Claude Code's "Restore code and conversation"). It asks first. Changes made by shell commands aren't covered, and if Claude Code has no file checkpoint for that turn it says so and changes nothing.
 
 Sent to the wrong one? `⌘Z` while the "Sent to …" toast is up.
 

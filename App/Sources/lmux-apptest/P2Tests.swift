@@ -1292,10 +1292,11 @@ func rewindChecks(_ r: Report, _ c: LmuxController, _ w: NSWindow, fx: URL) asyn
     // App/scripts/claude-rewind-fake.py draws the rewind menu row for row like Claude Code 2.1.280 and
     // logs every key it reads and what was chosen; the transcript fixture holds the same prompts.
     let fakeScript = URL(fileURLWithPath: env["LMUX_SCRIPTS_DIR"] ?? "scripts").appendingPathComponent("claude-rewind-fake.py").path
-    func rewindPane(_ name: String, prompts: [String], menu: [String]? = nil, _ extra: [String: Any] = [:]) async
+    /// `tools`: each turn's tool calls (files Claude edited), in the transcript only.
+    func rewindPane(_ name: String, prompts: [String], menu: [String]? = nil, tools: [(String, String)] = [], _ extra: [String: Any] = [:]) async
         -> (pane: Pane, log: String, path: String) {
         let path = fx.appendingPathComponent("rw-\(name).jsonl").path
-        try? fixtureJSONL(session: "rw-\(name)", cwd: "/tmp", turns: prompts.map { FixtureTurn(prompt: $0, reply: "OK") })
+        try? fixtureJSONL(session: "rw-\(name)", cwd: "/tmp", turns: prompts.map { FixtureTurn(prompt: $0, reply: "OK", tools: tools) })
             .write(toFile: path, atomically: true, encoding: .utf8)
         let spec = fx.appendingPathComponent("rw-\(name).json")
         var o: [String: Any] = ["prompts": menu ?? prompts]
@@ -1425,6 +1426,53 @@ func rewindChecks(_ r: Report, _ c: LmuxController, _ w: NSWindow, fx: URL) asyn
     r.check("×: rewound, then the input cleared", acts(r3.log) == ["open", "pick 2", "choose Restore conversation 2",
                                                                   "restore conversation 2", "clear input"]
             && input(r3.pane) == "", acts(r3.log).joined(separator: "; "))
+
+    // ⌥× (issue #9): asks first, then picks exactly "Restore code and conversation" (the default here: no key moves).
+    let edited = [("Edit", "/tmp/rw-code/note.txt")]
+    let rc1 = await rewindPane("c1", prompts: ["first", "second one", "third"], tools: edited, ["files": true])
+    c.requestRewind(rc1.pane, turnIndex: 2, edit: false, restoreCode: true)
+    let dc1 = rc1.pane.view.overlay.card?.detail.stringValue ?? ""
+    r.check("⌥× asks first: the files Claude edited with its own tools go back, not shell-command changes",
+            rc1.pane.view.overlay.card?.confirm.title == "Restore Files" && dc1.contains("with its own tools (note.txt)")
+            && dc1.contains("Changes made by shell commands stay") && dc1.contains("Removes this message and everything after it"), dc1)
+    _ = await confirmAndWait(rc1.pane)
+    r.check("⌥×: Esc Esc, ↑ ↑, Return, Return on the default, then Ctrl+U to clear",
+            keys(rc1.log) == ["esc", "esc", "up", "up", "enter", "enter", "ctrl-u"], keys(rc1.log).joined(separator: " "))
+    r.check("…“Restore code and conversation” on message 2, the input cleared",
+            acts(rc1.log) == ["open", "pick 2", "choose Restore code and conversation 2", "restore code 2", "clear input"]
+            && input(rc1.pane) == "", acts(rc1.log).joined(separator: "; "))
+    // Plain × through the same card, file checkpoints there: still never a code option.
+    let rc2 = await rewindPane("c2", prompts: ["first", "second one"], tools: edited, ["files": true])
+    c.requestRewind(rc2.pane, turnIndex: 2, edit: false)
+    let dc2 = rc2.pane.view.overlay.card?.detail.stringValue ?? ""
+    r.check("× (no ⌥) with files edited: “Remove”, the files stay", rc2.pane.view.overlay.card?.confirm.title == "Remove"
+            && dc2.contains("stay as they are"), dc2)
+    _ = await confirmAndWait(rc2.pane)
+    r.check("…“Restore conversation” only, never a code option",
+            acts(rc2.log) == ["open", "pick 2", "choose Restore conversation 2", "restore conversation 2", "clear input"]
+            && !acts(rc2.log).contains { $0.contains("code") }, acts(rc2.log).joined(separator: "; "))
+    // No "Restore code and conversation" in Claude's menu (no file checkpoints): backs out, no Return on any option.
+    let rc3 = await rewindPane("c3", prompts: ["first", "second one"], tools: edited)
+    let oc3 = await c.rewind(rc3.pane, turnUuid: "rw-c3-u2", mode: .removeRestoringCode)
+    r.check("⌥× without that option: fails with the reason, Esc out of the confirmation, nothing chosen",
+            oc3 == .failed("no code checkpoint") && keys(rc3.log) == ["esc", "esc", "up", "enter", "esc", "esc"]
+            && acts(rc3.log) == ["open", "pick 2", "close"] && RewindMenu.read(rows(rc3.pane)) == .closed,
+            "\(oc3) " + keys(rc3.log).joined(separator: " "))
+    let tc3 = await c.loadTurns(rc3.pane)
+    r.check("…a note says why; both turns still there",
+            (rc3.pane.view.overlay.toast?.text.string ?? "").contains("no file checkpoint") && tc3.count == 2, rc3.pane.view.overlay.toast?.text.string ?? "no note")
+    // Claude restores without a confirmation (no checkpoints): the conversation only, and lmux says so.
+    let rc4 = await rewindPane("c4", prompts: ["first", "second one"], tools: edited, ["direct": true])
+    let oc4 = await c.rewind(rc4.pane, turnUuid: "rw-c4-u2", mode: .removeRestoringCode)
+    r.check("⌥× when Claude restores right away: a failure that says only the conversation was rewound",
+            oc4 == .failed("no code checkpoint") && (rc4.pane.view.overlay.toast?.text.string ?? "").contains("conversation only"),
+            "\(oc4) " + (rc4.pane.view.overlay.toast?.text.string ?? "no note"))
+    // A turn with no file Claude edited from it on: ⌥× says why at once, no card, no key.
+    let rc5 = await rewindPane("c5", prompts: ["first", "second one"], ["files": true])
+    c.requestRewind(rc5.pane, turnIndex: 2, edit: false, restoreCode: true)
+    r.check("⌥× on turns that edited no files: refused inline, no card, no key",
+            !c.cardShown(rc5.pane) && (rc5.pane.view.overlay.toast?.text.string ?? "").contains("Claude edited none")
+            && fakeLog(rc5.log).isEmpty, rc5.pane.view.overlay.toast?.text.string ?? "no note")
 
     // The same prompt twice: × on the first "yes" goes past the later one, by position.
     let r4 = await rewindPane("4", prompts: ["yes", "fix it", "yes"])

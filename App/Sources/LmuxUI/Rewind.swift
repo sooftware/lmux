@@ -8,8 +8,9 @@ private typealias T = LmuxTokens
 // process: subagents, background shells and MCP connections live on. lmux sends one key at a time,
 // waits until the menu's parsed selection has changed (any other redraw doesn't count), and only
 // presses Return once the selection has held still on exactly the entry or option it expects.
-// Only "Restore conversation" is ever chosen, never an option that restores code. Anything
-// unexpected backs out with Esc and changes nothing. The user's own input to the pane is held
+// ✎, × and ⌘Z only ever choose "Restore conversation", never an option that restores code; only ⌥×
+// (asked first) chooses "Restore code and conversation", and only when that exact option is offered.
+// Anything unexpected backs out with Esc and changes nothing. The user's own input to the pane is held
 // meanwhile (`SurfaceView.inputHeld`), and the pane shows its last frame until Claude has redrawn
 // the result: the menu is never seen moving.
 
@@ -61,8 +62,10 @@ enum RewindMenu {
     }
 
     static let current = "(current)"
-    /// The only option lmux picks: conversation only, files untouched.
+    /// The only option ✎, × and ⌘Z pick: conversation only, files untouched.
     static let restoreConversation = "Restore conversation"
+    /// What ⌥× picks: the files Claude edited through its own tools go back too.
+    static let restoreCodeAndConversation = "Restore code and conversation"
     static let footer = "Enter to continue · Esc to cancel"
 
     static func read(_ rows: [String]) -> Screen {
@@ -184,6 +187,8 @@ extension LmuxController {
         case edit
         /// ×: the input is left empty.
         case remove
+        /// ⌥×: as ×, and the files Claude edited through its own tools are restored too.
+        case removeRestoringCode
     }
 
     /// How long Claude Code counts two Esc presses as one double press (Esc Esc).
@@ -191,7 +196,7 @@ extension LmuxController {
 
     // MARK: - Confirm card
 
-    func requestRewind(_ pane: Pane, turnIndex: Int, edit: Bool) {
+    func requestRewind(_ pane: Pane, turnIndex: Int, edit: Bool, restoreCode: Bool = false) {
         guard !pane.runsCodex, !pane.busy, let turn = pane.hover.turns.first(where: { $0.index == turnIndex }) else { return }
         if turn.beforeCompaction {
             showNote(pane, Self.compactedNote,
@@ -203,6 +208,14 @@ extension LmuxController {
             return
         }
         let later = pane.hover.turns.filter { $0.index > turn.index }.count
+        let files = Set(pane.hover.turns.filter { $0.index >= turn.index }.flatMap(\.editedFiles)).sorted()
+        let names = files.prefix(3).map { ($0 as NSString).lastPathComponent }.joined(separator: ", ")
+            + (files.count > 3 ? " and \(files.count - 3) more" : "")
+        if restoreCode, files.isEmpty {
+            showNote(pane, "Can’t restore files: Claude edited none with its own tools from this message on.",
+                     symbol: "exclamationmark.triangle", color: T.Colors.stateFailed.nsColor)
+            return
+        }
         var detail: String
         if edit {
             detail = "Claude rewinds to just before it and puts the text back in the input."
@@ -214,17 +227,18 @@ extension LmuxController {
         detail += " Claude keeps running."
         if claudeWorking(pane) { detail += " Claude is working and will be stopped first." }
         else if claudeAsking(pane) { detail += " Claude is waiting for your answer; that’s declined first." }
-        let files = Set(pane.hover.turns.filter { $0.index >= turn.index }.flatMap(\.editedFiles)).sorted()
-        if !files.isEmpty {
-            let names = files.prefix(3).map { ($0 as NSString).lastPathComponent }.joined(separator: ", ")
-            detail += " Files changed (\(names)\(files.count > 3 ? " and \(files.count - 3) more" : "")) stay as they are."
+        if restoreCode {
+            detail += " Files Claude edited with its own tools (\(names)) go back to how they were. Changes made by shell commands stay."
+        } else if !files.isEmpty {
+            detail += " Files changed (\(names)) stay as they are."
         }
         let first = turn.firstLine.count > 60 ? String(turn.firstLine.prefix(60)) + "…" : turn.firstLine
-        showCard(pane, message: Self.bold(edit ? "Edit " : "Remove ", "“\(first)”", "?"), detail: detail,
-                 confirmTitle: edit ? "Edit" : "Remove",
+        let mode: RewindMode = edit ? .edit : restoreCode ? .removeRestoringCode : .remove
+        showCard(pane, message: Self.bold(edit ? "Edit " : "Remove ", "“\(first)”", restoreCode ? " and restore its files?" : "?"), detail: detail,
+                 confirmTitle: edit ? "Edit" : restoreCode ? "Restore Files" : "Remove",
                  onConfirm: { [weak self, weak pane] in
                      guard let self, let pane else { return }
-                     Task { await self.rewind(pane, turnUuid: turn.uuid, mode: edit ? .edit : .remove) }
+                     Task { await self.rewind(pane, turnUuid: turn.uuid, mode: mode) }
                  })
     }
 
@@ -309,11 +323,13 @@ extension LmuxController {
         case "Claude’s input has unsent text or queued messages":
             return "Couldn’t rewind: Claude’s input has unsent text or queued messages. Clear them first."
         case "Claude’s input box isn’t on screen": return "Couldn’t rewind: Claude’s input box isn’t on screen."
+        case "no code checkpoint": return noCodeNote
         default: return "Couldn’t rewind; use Esc Esc in Claude Code."
         }
     }
 
     static let compactedNote = "Can’t rewind this message: it’s from before Claude compacted the conversation."
+    static let noCodeNote = "Can’t restore files: Claude Code has no file checkpoint for this message. Nothing was changed."
 
     /// Claude is waiting on a dialog of its own (a permission, a question, a plan to approve): its
     /// input box is hidden under it, and Esc declines it, as the user's own Esc would.
@@ -527,7 +543,11 @@ extension LmuxController {
             guard RewindMenu.matches(back, prompt: prompt) || TurnLocator.matches(row: back, prompt: prompt) else {
                 return await backOut(pane, "the menu closed without a confirmation")
             }
-            return await rewound(pane, turnUuid: turnUuid, prompt: prompt, mode: mode, &d)
+            let outcome = await rewound(pane, turnUuid: turnUuid, prompt: prompt, mode: mode, &d)
+            // No file checkpoints: Claude restored the conversation only.
+            guard mode == .removeRestoringCode else { return outcome }
+            d.note = "Rewound the conversation only: Claude Code had no file checkpoint for this message."
+            return .failed("no code checkpoint")
         }
         guard RewindMenu.quoteMatches(quote, prompt: prompt) else {
             return await backOut(pane, "the confirmation quotes another message: \(quote)")
@@ -535,33 +555,39 @@ extension LmuxController {
 
         // 7) Down / up to "Restore conversation" (with file checkpoints the default is "Restore code and
         //    conversation"), one key at a time, each waited out; Return only once it has held still.
+        //    ⌥× wants exactly "Restore code and conversation": without it (no file checkpoints) it backs out.
+        let option = mode == .removeRestoringCode ? RewindMenu.restoreCodeAndConversation : RewindMenu.restoreConversation
         for _ in 0..<8 {
-            guard case .confirm(_, let opts, let sel?) = state, let want = opts.firstIndex(of: RewindMenu.restoreConversation) else {
-                return await backOut(pane, "no \(RewindMenu.restoreConversation) option: \(state)")
+            guard case .confirm(_, let opts, let sel?) = state, let want = opts.firstIndex(of: option) else {
+                guard mode != .removeRestoringCode else {
+                    log("rewind: no \(option) option: \(state)")
+                    return await backOut(pane, "no code checkpoint")
+                }
+                return await backOut(pane, "no \(option) option: \(state)")
             }
             if sel == want { break }
             guard let next = await press(pane, sel > want ? .up : .down, from: state) else { return await backOut(pane, "the option didn't move") }
             state = next
         }
         // Held still a little longer here: Return on it is the one step that can't be backed out of.
-        guard case .confirm(_, let opts, let sel?) = state, opts[sel] == RewindMenu.restoreConversation,
+        guard case .confirm(_, let opts, let sel?) = state, opts[sel] == option,
               await settled(pane, state, for: 0.15) else {
-            return await backOut(pane, "\(RewindMenu.restoreConversation) not highlighted")
+            return await backOut(pane, "\(option) not highlighted")
         }
-        // One read right before Return: still exactly "Restore conversation", still the same selection.
+        // One read right before Return: still exactly the option wanted, still the same selection.
         guard case .confirm(_, let now, let nowSel?) = RewindMenu.read(screenRows(pane)),
-              now[nowSel] == RewindMenu.restoreConversation, Self.selection(.confirm(quote: "", options: now, selected: nowSel))
+              now[nowSel] == option, Self.selection(.confirm(quote: "", options: now, selected: nowSel))
                 == Self.selection(.confirm(quote: "", options: opts, selected: sel)) else {
-            return await backOut(pane, "\(RewindMenu.restoreConversation) not highlighted at Return")
+            return await backOut(pane, "\(option) not highlighted at Return")
         }
         guard pressReturn(pane) else { return await backOut(pane, "hidden") }
-        // "Restore conversation" is chosen: from here on no key is pressed (an Esc could cut the restore
+        // The restore is chosen: from here on no key is pressed (an Esc could cut the restore
         // short). Claude has rewound once the menu is gone, however long that takes.
         pane.rewoundFrom = turnUuid
         guard await waitScreen(pane, 30, { RewindMenu.read($0) == .closed && Self.idleInput($0) != nil }) != nil else {
             if !onScreen(pane) {
                 log("rewind: restore chosen, pane hidden")
-                if mode == .remove { d.note = "Rewound. Clear the message from Claude’s input yourself." }
+                if mode != .edit { d.note = "Rewound. Clear the message from Claude’s input yourself." }
                 return .done
             }
             log("rewind: restore chosen, Claude not back at its prompt yet")
@@ -579,7 +605,7 @@ extension LmuxController {
         pane.hover = HoverCache()
         _ = await loadTurns(pane)
         titleAfterRewind(pane)
-        if mode == .remove {
+        if mode != .edit {
             let leftOver = "Rewound. Clear the message from Claude’s input yourself."
             // Claude puts the prompt back as its menu closes.
             guard let back = await waitScreen(pane, 1.5, { !(Self.idleInput($0) ?? "").isEmpty }) else {
