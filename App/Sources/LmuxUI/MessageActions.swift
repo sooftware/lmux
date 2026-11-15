@@ -417,9 +417,7 @@ extension LmuxController {
                 onRemove: { [weak self, weak pane, weak ov] in
                     guard let self, let pane, let bar = ov?.turnBar, bar.removable else { return }
                     let t = bar.turn
-                    // ⌥-click: the files Claude edited go back too (asked first, like ×).
-                    let code = NSApp.currentEvent?.modifierFlags.contains(.option) == true
-                    self.requestRewind(pane, turnIndex: t, edit: false, restoreCode: code)
+                    self.requestRewind(pane, turnIndex: t, edit: false)
                 })
             bar.remove.onHover = { [weak ov, weak bar] on in
                 guard on else { ov?.showTip(nil); return }
