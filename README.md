@@ -106,8 +106,6 @@ Docs: [lmux.dev/docs](https://lmux.dev/docs/)
 
 **Codex too.** If the Codex CLI is installed, lmux offers to install Codex hooks next, the same way (this time the diff is against `~/.codex/hooks.json`). Codex asks once to trust new hooks the next time it starts. Choose **Trust all and continue**.
 
-**Open a folder.** Choose lmux as your terminal in OpenInTerminal, or run `open -a lmux /path/to/folder`. lmux opens a new workspace in that folder and keeps your existing workspaces.
-
 **Every day.** These are the defaults; a `keybind` in your Ghostty config overrides them, and the menus show whatever is bound.
 
 | to do this                                    | press                                            |

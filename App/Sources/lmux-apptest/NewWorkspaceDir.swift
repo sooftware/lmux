@@ -156,7 +156,7 @@ func runNewWorkspaceDirRestore() async -> Int32 {
     r.section = "start dir: restore"
     guard let fx = DirFixture() else { return 2 }
     // working-directory = proj (left by the run above) must not move a restored pane.
-    let folder = URL(fileURLWithPath: fx.work).appendingPathComponent("Opened café").path
+    let folder = URL(fileURLWithPath: fx.work).appendingPathComponent("Project Folder").path
     try? FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
     let c = makeController(openingDirectories: [folder])
     let opened = c.model.selected?.focusedPane
