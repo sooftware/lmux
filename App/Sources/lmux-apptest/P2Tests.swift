@@ -1356,6 +1356,19 @@ func rewindChecks(_ r: Report, _ c: LmuxController, _ w: NSWindow, fx: URL) asyn
             RewindMenu.read([String(repeating: "▔", count: 40), "   Rewind", "", "   Confirm you want to restore to the point before you sent this message:",
                              "", "   │ hello there", "   │ (just now)", "", "   ❯ 1. Restore conversation"])
             == .confirm(quote: "hello there", options: ["Restore conversation"], selected: 0))
+    // 2.1.326: "Restore to the point before…", a line on what goes back, "Never mind", a warning under the options.
+    let confirmRows326 = [String(repeating: "▔", count: 40), "   Rewind", "",
+                          "   Restore to the point before you sent this message:", "",
+                          "   │ remember the number 42", "   │ (13s ago)", "",
+                          "   The conversation goes back to before this message.", "   The code will be restored -1 in note.txt.", "",
+                          "   ❯ 1. Restore code and conversation", "     2. Restore conversation", "     3. Restore code",
+                          "     4. Summarize from here", "     5. Summarize up to here", "     6. Never mind", "",
+                          "   ⚠ Restored files go back whole, losing later changes by anyone. Bash changes to other files are not undone."]
+    r.check("…and as 2.1.326 draws it: its new first line, “Never mind”, the warning left out",
+            RewindMenu.read(confirmRows326) == .confirm(quote: "remember the number 42",
+                                                        options: ["Restore code and conversation", "Restore conversation", "Restore code",
+                                                                  "Summarize from here", "Summarize up to here", "Never mind"], selected: 0),
+            "\(RewindMenu.read(confirmRows326))")
     r.check("…the quote is told from another prompt with the same start",
             RewindMenu.quoteMatches("please WRITEFILE /private/tmp/x\ny/note.txt", prompt: "please WRITEFILE /private/tmp/xy/note.txt")
             && !RewindMenu.quoteMatches("fix bug\nA", prompt: "fix bug\nB") && RewindMenu.quoteMatches("fix bug\nB", prompt: "fix bug\nB"))
