@@ -228,18 +228,22 @@ func currentInputSourceID() -> String {
     return Unmanaged<CFString>.fromOpaque(p).takeUnretainedValue() as String
 }
 
-/// Selects `id` and waits until it's really the current source (and `ctx`'s, if given): TIS switches
-/// asynchronously, and on CI's VM a fixed wait wasn't always enough (checks then saw raw jamo).
+/// Selects `id` (and on `ctx`, if given) once, then waits until the system's current source is
+/// `id`: TIS switches asynchronously, and on CI's VM a fixed wait wasn't always enough (checks then
+/// saw raw jamo). Selected again once halfway, never in a loop: hammering TIS broke the IME
+/// server's connection ("error messaging the mach port for IMKCFRunLoopWakeUpReliable", exit 6).
 @discardableResult
 func waitForInputSource(_ id: String, _ ctx: NSTextInputContext? = nil, timeout: Double = 3) async -> Bool {
-    let end = Date().addingTimeInterval(timeout)
-    repeat {
-        if currentInputSourceID() == id && (ctx == nil || ctx?.selectedKeyboardInputSource == id) { return true }
-        selectInputSource(id)
-        ctx?.selectedKeyboardInputSource = id
+    if currentInputSourceID() != id { selectInputSource(id) }
+    ctx?.selectedKeyboardInputSource = id
+    let start = Date()
+    var again = false
+    while Date().timeIntervalSince(start) < timeout {
+        if currentInputSourceID() == id { return true }
+        if !again && Date().timeIntervalSince(start) > timeout / 2 { selectInputSource(id); again = true }
         await sleepMs(100)
-    } while Date() < end
-    return currentInputSourceID() == id && (ctx == nil || ctx?.selectedKeyboardInputSource == id)
+    }
+    return currentInputSourceID() == id
 }
 
 @discardableResult
