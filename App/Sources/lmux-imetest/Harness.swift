@@ -222,9 +222,11 @@ func show(_ bytes: [UInt8]) -> String {
     }.joined()
 }
 
+/// "" while there's none to read: polled during a switch, the current source can be momentarily
+/// unset or have no ID (force-unwrapping that killed the visible run on CI).
 func currentInputSourceID() -> String {
-    let src = TISCopyCurrentKeyboardInputSource().takeRetainedValue()
-    let p = TISGetInputSourceProperty(src, kTISPropertyInputSourceID)!
+    guard let src = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue(),
+          let p = TISGetInputSourceProperty(src, kTISPropertyInputSourceID) else { return "" }
     return Unmanaged<CFString>.fromOpaque(p).takeUnretainedValue() as String
 }
 
