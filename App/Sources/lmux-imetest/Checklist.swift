@@ -137,7 +137,7 @@ func runIMEChecks(_ r: Report, runtime: GhosttyRuntime, real: Bool) async {
             if await w.waitReady() {
                 await attachIME(w)
                 w.mark()
-                await post(Key.latin("rk") + [Key.ch(" ")], to: w.window, gapMs: gap)
+                await post(Key.latin("rk "), to: w.window, gapMs: gap)
                 composes = await w.waitBytes(atLeast: 4, timeout: 3) == Array("가 ".utf8)
             }
             w.window.close()
