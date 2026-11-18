@@ -34,6 +34,8 @@ set +e
 "$BIN" "$@" 2>/dev/null | grep -v '^\(info\|debug\|warning\)('
 st=${PIPESTATUS[0]}
 set -e
+# 0 = passed, 1 = a check failed; anything else is the harness dying mid-run (its stderr is dropped above).
+if [ "$st" -gt 1 ]; then echo "FAIL  [harness] lmux-imetest exited $st before reporting (a crash?)"; fi
 if ls -d "$TMPDIR"/lmux-imetest-* >/dev/null 2>&1; then
   echo "FAIL  [hygiene] the harness left its temp dir behind: $(ls -d "$TMPDIR"/lmux-imetest-*)"; st=1
 else
