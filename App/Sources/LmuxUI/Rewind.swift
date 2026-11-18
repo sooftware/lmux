@@ -155,8 +155,15 @@ enum RewindMenu {
 
     /// The confirmation's quote (up to 4 lines of the prompt, wrapped at any character) is this
     /// prompt: compared without whitespace, it starts the prompt and is as long as the menu shows.
+    /// 2.1.326 shows 3 lines and ends the last with "…" when there's more: then it starts the prompt
+    /// and the prompt goes on past it.
     static func quoteMatches(_ quote: String, prompt: String) -> Bool {
         let q = quote.filter { !$0.isWhitespace }
+        if q.hasSuffix("…") {
+            let cut = q.dropLast()
+            let whole = promptLines(prompt).joined().filter { !$0.isWhitespace }
+            if !cut.isEmpty, whole.hasPrefix(cut), whole.count > cut.count { return true }
+        }
         let p = promptLines(prompt).prefix(4).joined().filter { !$0.isWhitespace }
         guard !q.isEmpty, p.hasPrefix(q) else { return false }
         return q.count >= min(p.count, 120)

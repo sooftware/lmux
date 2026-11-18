@@ -147,8 +147,9 @@ def draw():
             out.append('   Enter to continue · Esc to cancel')
         else:
             out.append('   Restore to the point before you sent this message:\r\n\r\n')
-            for l in prompts[sel].split('\n')[:4]:
-                out.append('   │ ' + l + '\r\n')
+            lines = prompts[sel].split('\n')
+            for i, l in enumerate(lines[:3]):  # 2.1.326: 3 lines, the last with "…" when there's more
+                out.append('   │ ' + l + ('…' if i == 2 and len(lines) > 3 else '') + '\r\n')
             out.append('   │ (%ds ago)\r\n\r\n' % (6 + int(time.time() - started)))
             out.append('   The conversation goes back to before this message.\r\n')
             out.append('   The code will be restored in note.txt.\r\n\r\n' if files else '   The code will be unchanged.\r\n\r\n')

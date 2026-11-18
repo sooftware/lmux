@@ -1369,6 +1369,12 @@ func rewindChecks(_ r: Report, _ c: LmuxController, _ w: NSWindow, fx: URL) asyn
                                                         options: ["Restore code and conversation", "Restore conversation", "Restore code",
                                                                   "Summarize from here", "Summarize up to here", "Never mind"], selected: 0),
             "\(RewindMenu.read(confirmRows326))")
+    let pasted6 = (1...6).map { "PASTED LINE \($0) of the e2e" }.joined(separator: "\n")
+    let quote326 = "PASTED LINE 1 of the e2e\nPASTED LINE 2 of the e2e\nPASTED LINE 3 of the e2e…"
+    r.check("…2.1.326's quote of a longer prompt: 3 lines, the last ending in “…”; not a prompt that stops there",
+            RewindMenu.quoteMatches(quote326, prompt: pasted6)
+            && !RewindMenu.quoteMatches(quote326, prompt: (1...3).map { "PASTED LINE \($0) of the e2e" }.joined(separator: "\n"))
+            && !RewindMenu.quoteMatches(quote326, prompt: "PASTED LINE 1 of the e2e\nsomething else\nand more\nand more"))
     r.check("…the quote is told from another prompt with the same start",
             RewindMenu.quoteMatches("please WRITEFILE /private/tmp/x\ny/note.txt", prompt: "please WRITEFILE /private/tmp/xy/note.txt")
             && !RewindMenu.quoteMatches("fix bug\nA", prompt: "fix bug\nB") && RewindMenu.quoteMatches("fix bug\nB", prompt: "fix bug\nB"))
