@@ -78,7 +78,7 @@ cat > "$OUT/Contents/Info.plist" <<'PLIST'
 	<array>
 		<dict>
 			<key>CFBundleTypeName</key><string>Folder</string>
-			<key>CFBundleTypeRole</key><string>Viewer</string>
+			<key>CFBundleTypeRole</key><string>Editor</string>
 			<key>LSHandlerRank</key><string>Alternate</string>
 			<key>LSItemContentTypes</key><array><string>public.folder</string></array>
 		</dict>
