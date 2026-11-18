@@ -123,7 +123,28 @@ func runIMEChecks(_ r: Report, runtime: GhosttyRuntime, real: Bool) async {
         guard real, let ctx = term.view.inputContext else { return }
         ctx.selectedKeyboardInputSource = koreanInputSourceID
         ctx.activate()
+        await waitForInputSource(koreanInputSourceID, ctx)
         await sleepMs(200)
+    }
+
+    // Real IME: before any check, the Korean IME must actually compose ("rk" -> 가) in a terminal of
+    // its own. A switch that hasn't taken shows up here once, not as raw jamo across the checks.
+    if real {
+        var composes = false
+        for _ in 0..<3 where !composes {
+            let w = SinkTerminal(runtime: runtime, view: make, title: "lmux-imetest warm-up")
+            if !headless { NSApp.activate(ignoringOtherApps: true) }
+            if await w.waitReady() {
+                await attachIME(w)
+                w.mark()
+                await post(Key.latin("rk") + [Key.ch(" ")], to: w.window, gapMs: gap)
+                composes = await w.waitBytes(atLeast: 4, timeout: 3) == Array("가 ".utf8)
+            }
+            w.window.close()
+            if !composes { selectInputSource(startInputSourceID ?? "com.apple.keylayout.ABC"); await sleepMs(300) }
+        }
+        r.check("(setup) the Korean IME composes (rk -> 가) before the checks", composes)
+        guard composes else { return }
     }
 
     // ---- Fresh terminal for cursor / rendering checks.
@@ -289,8 +310,9 @@ func runIMEChecks(_ r: Report, runtime: GhosttyRuntime, real: Bool) async {
         await post([Key.ch("a")], to: t.window, gapMs: gap)
         let mixed = await t.waitBytes(atLeast: 4)
         ctx.selectedKeyboardInputSource = koreanInputSourceID
-        selectInputSource(koreanInputSourceID)
+        let back = await waitForInputSource(koreanInputSourceID, ctx)
         await sleepMs(300)
+        r.check("(setup) back on the Korean source after the switch", back, currentInputSourceID())
         r.check("input source switched mid-word (가 → \(latin) → a) gives 가a", show(mixed) == "가a",
                 "pty=\"\(show(mixed))\"")
     }
