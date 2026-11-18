@@ -291,6 +291,7 @@ func runIMEChecks(_ r: Report, runtime: GhosttyRuntime, real: Bool) async {
         await post([Key.ch("a")], to: t.window, gapMs: gap)
         let mixed = await t.waitBytes(atLeast: 4)
         ctx.selectedKeyboardInputSource = koreanInputSourceID
+        selectInputSource(koreanInputSourceID)
         let back = await waitForInputSource(koreanInputSourceID)
         await sleepMs(300)
         r.check("(setup) back on the Korean source after the switch", back, currentInputSourceID())
