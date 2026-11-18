@@ -31,11 +31,15 @@ RES="$APP_DIR/build/test-resources/ghostty"
 mkdir -p "$RES/themes" && cp "$APP_DIR/Resources/themes/"* "$RES/themes/"
 export GHOSTTY_RESOURCES_DIR="$RES"
 set +e
-"$BIN" "$@" 2>/dev/null | grep -v '^\(info\|debug\|warning\)('
+ERRLOG="$TMPDIR/stderr.log"
+"$BIN" "$@" 2>"$ERRLOG" | grep -v '^\(info\|debug\|warning\)('
 st=${PIPESTATUS[0]}
 set -e
-# 0 = passed, 1 = a check failed; anything else is the harness dying mid-run (its stderr is dropped above).
-if [ "$st" -gt 1 ]; then echo "FAIL  [harness] lmux-imetest exited $st before reporting (a crash?)"; fi
+# 0 = passed, 1 = a check failed; anything else is the harness dying mid-run: show what it said last.
+if [ "$st" -gt 1 ]; then
+  echo "FAIL  [harness] lmux-imetest exited $st before reporting (a crash?); its last stderr lines:"
+  grep -v '^\(info\|debug\)(' "$ERRLOG" | tail -25 | sed 's/^/      /'
+fi
 if ls -d "$TMPDIR"/lmux-imetest-* >/dev/null 2>&1; then
   echo "FAIL  [hygiene] the harness left its temp dir behind: $(ls -d "$TMPDIR"/lmux-imetest-*)"; st=1
 else
