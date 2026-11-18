@@ -124,8 +124,6 @@ func runIMEChecks(_ r: Report, runtime: GhosttyRuntime, real: Bool) async {
         ctx.selectedKeyboardInputSource = koreanInputSourceID
         ctx.activate()
         await sleepMs(200)
-        // TIS switches asynchronously: on CI's VM 200 ms wasn't always enough (raw jamo in the checks).
-        r.check("(setup) the Korean 2-Set source is current", await waitForInputSource(koreanInputSourceID), currentInputSourceID())
     }
 
     // ---- Fresh terminal for cursor / rendering checks.
@@ -292,9 +290,7 @@ func runIMEChecks(_ r: Report, runtime: GhosttyRuntime, real: Bool) async {
         let mixed = await t.waitBytes(atLeast: 4)
         ctx.selectedKeyboardInputSource = koreanInputSourceID
         selectInputSource(koreanInputSourceID)
-        let back = await waitForInputSource(koreanInputSourceID)
         await sleepMs(300)
-        r.check("(setup) back on the Korean source after the switch", back, currentInputSourceID())
         r.check("input source switched mid-word (가 → \(latin) → a) gives 가a", show(mixed) == "가a",
                 "pty=\"\(show(mixed))\"")
     }

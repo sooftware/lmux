@@ -222,26 +222,10 @@ func show(_ bytes: [UInt8]) -> String {
     }.joined()
 }
 
-/// "" while there's none to read: polled during a switch, the current source can be momentarily
-/// unset or have no ID (force-unwrapping that killed the visible run on CI).
 func currentInputSourceID() -> String {
-    guard let src = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue(),
-          let p = TISGetInputSourceProperty(src, kTISPropertyInputSourceID) else { return "" }
+    let src = TISCopyCurrentKeyboardInputSource().takeRetainedValue()
+    let p = TISGetInputSourceProperty(src, kTISPropertyInputSourceID)!
     return Unmanaged<CFString>.fromOpaque(p).takeUnretainedValue() as String
-}
-
-/// Waits (up to `timeout`) until the system's current source is `id`. Never selects it: selecting
-/// again while the IME is in use broke its server connection on CI ("error messaging the mach port
-/// for IMKCFRunLoopWakeUpReliable", exit 6). The callers select once, as before; TIS switches
-/// asynchronously, and on CI's VM a fixed wait after that wasn't always enough.
-@discardableResult
-func waitForInputSource(_ id: String, timeout: Double = 3) async -> Bool {
-    let start = Date()
-    while Date().timeIntervalSince(start) < timeout {
-        if currentInputSourceID() == id { return true }
-        await sleepMs(100)
-    }
-    return currentInputSourceID() == id
 }
 
 @discardableResult
