@@ -671,6 +671,9 @@ extension LmuxController {
     /// Something didn't look as expected: Esc until no menu is left. Nothing was changed.
     private func backOut(_ pane: Pane, _ why: String, waitLate: Bool = true) async -> RewindOutcome {
         log("rewind: backing out (\(why))")
+        // What was on screen, for when Claude Code changes its menu again (the log stays in memory).
+        log("rewind: screen: " + screenRows(pane).map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }.suffix(24).joined(separator: " ⏎ "))
         // A menu that opens late (a slow Claude) is closed too: input stays held until then.
         if waitLate, RewindMenu.read(screenRows(pane)) == .closed { _ = await waitScreen(pane, 3, { RewindMenu.read($0) != .closed }) }
         // Never into a hidden pane (its waits end at once: the Escs would come in a burst, a pair of
