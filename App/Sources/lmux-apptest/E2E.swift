@@ -325,10 +325,14 @@ func runE2E() async -> Int32 {
     r.check("a pasted prompt answered", await sendPasted())
     let p10 = await c.loadTurns(p)
     let o10e = await c.rewind(p, turnUuid: p10.last!.uuid, mode: .edit)
-    r.check("✎ on a pasted prompt: its whole text back in the input (not the placeholder)",
-            o10e == .done && LmuxController.idleBox(rows(p))?.first == "PASTED LINE 1 of the e2e"
-            && LmuxController.idleBox(rows(p))?.contains("PASTED LINE 6 of the e2e") == true,
-            "\(o10e) \(LmuxController.idleBox(rows(p)) ?? ["nil"])")
+    // Claude puts the prompt back itself: before 2.1.330 as its whole text, since then as the pasted
+    // block it holds ("[Pasted text #N +5 lines]" for these 6 lines). Either is the prompt, editable.
+    let box10e = LmuxController.idleBox(rows(p)) ?? []
+    let wholeText = box10e.first == "PASTED LINE 1 of the e2e" && box10e.contains("PASTED LINE 6 of the e2e")
+    let pastedBlock = box10e.filter { !$0.isEmpty }.count == 1
+        && box10e.contains { $0.hasPrefix("[Pasted text #") && $0.hasSuffix(" +5 lines]") }
+    r.check("✎ on a pasted prompt: it's back in the input (its whole text, or Claude's pasted block of it)",
+            o10e == .done && (wholeText || pastedBlock), "\(o10e) \(box10e)")
     await escEsc(c, p)
     r.check("…Esc Esc leaves a clean input", await waitFor(3) { LmuxController.idleBox(rows(p)) == [""] }, "\(LmuxController.idleBox(rows(p)) ?? ["nil"])")
     await sleepMs(900)
