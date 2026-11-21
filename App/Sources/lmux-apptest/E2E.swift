@@ -426,7 +426,14 @@ func runE2E() async -> Int32 {
     }
 
     r.check("one claude process for the whole run", sameClaude())
-    if env["LMUX_E2E_DUMP"] == "1" { for l in c.actionLog { print("      log: \(l)") } }
+    if env["LMUX_E2E_DUMP"] == "1" {
+        for l in c.actionLog { print("      log: \(l)") }
+        // The transcript's user lines with pasted text, as Claude Code wrote them (its format changes).
+        let lines = (try? String(contentsOfFile: p.transcriptPath ?? "", encoding: .utf8))?.split(separator: "\n") ?? []
+        for l in lines where l.contains("\"type\":\"user\"") && l.contains("PASTED LINE") {
+            print("      transcript: \(l.prefix(1500))")
+        }
+    }
 
     // Leave nothing running.
     for _ in 0..<3 { p.surface.sendKey(keyCode: 0x08, codepoint: 0x63, control: true); await sleepMs(400) }
